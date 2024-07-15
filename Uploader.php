@@ -1,26 +1,32 @@
 <?php
 
+require_once(__DIR__.'/ImageResizer.php');
+require_once(__DIR__.'/FileValidator.php');
+
 class Uploader
 {
     private $name;
     private $type;
-    public $directory = '';
-    public $validTypes = [];
+    private $temporaryName;
+    private $directory = '';
+    private $validator;
+    private $resizer;
+    private $error = '';
 
-    public function __construct($file)
+
+    public function __construct(array $file, FileValidatorInterface $validator, ImageResizerInterface $resizer)
     {
-        $fileData = $_FILES[$file];
-        $this->temporaryName = $fileData['tmp_name'];
-        $this->name = $fileData['name'];
-        $this->type = $fileData['type'];
-        $this->validTypes = ['PNG', 'png', 'jpeg', 'jpg', 'JPG'];
+        $this->temporaryName = $file['tmp_name'];
+        $this->name = $file['name'];
+        $this->type = $file['type'];
+        $this->validator = $validator;
+        $this->resizer = $resizer;
     }
 
-    public function uploadFile()
+    public function uploadFile(): bool
     {
-        if (!in_array($this->type, $this->validTypes)) {
+        if ($this->validator->isValid($this->type)) {
             $this->error = 'Le fichier ' . $this->name . ' n\'est pas d\'un type valide';
-
             return false;
         } else {
             return true;
@@ -47,52 +53,27 @@ class Uploader
         return pathinfo($this->name, PATHINFO_EXTENSION);
     }
 
-    public function resize($origin, $destination, $width, $maxHeight)
-    {
-        $type = $this->getExtension();
-        $pngFamily = ['PNG', 'png'];
-        $jpegFamily = ['jpeg', 'jpg', 'JPG'];
-        if (in_array($type, $jpegFamily)) {
-            $type = 'jpeg';
-        } elseif (in_array($type, $pngFamily)) {
-            $type = 'png';
-        }
-        $function = 'imagecreatefrom' . $type;
-
-        if (!is_callable($function)) {
-            return false;
-        }
-
-        $image = $function($origin);
-
-        $imageWidth = \imagesx($image);
-        if ($imageWidth < $width) {
-            if (!copy($origin, $destination)) {
-                throw new Exception("Impossible de copier le fichier {$origin} vers {$destination}");
-            }
-        } else {
-            $imageHeight = \imagesy($image);
-            $height = (int) (($width * $imageHeight) / $imageWidth);
-            if ($height > $maxHeight) {
-                $height = $maxHeight;
-                $width = (int) (($height * $imageWidth) / $imageHeight);
-            }
-            $newImage = \imagecreatetruecolor($width, $height);
-
-            if ($newImage !== false) {
-                \imagecopyresampled($newImage, $image, 0, 0, 0, 0, $width, $height, $imageWidth, $imageHeight);
-
-                $function = 'image' . $type;
-
-                if (!is_callable($function)) {
-                    return false;
-                }
-
-                $function($newImage, $destination);
-
-                \imagedestroy($newImage);
-                \imagedestroy($image);
-            }
-        }
+    public function resize(string $destination, int $width, int $maxheight): void {
+        
+        $this->resizer->ImageResizer($this->temporaryName, $destination, $width, $maxheight);
     }
+
+    public function getError(): string {
+        return $this->error;
+    }
+}
+
+
+// Utilisation de l'uploader avec des validations et redimensionnements spécifiques
+$file = $_FILES['file'];
+$validator = new FileValidator();
+$resizer = new ImageResizer();
+$uploader = new Uploader($file, $validator, $resizer);
+
+if ($uploader->uploadFile()) {
+    $destination = 'uploads/' . $uploader->getName();
+    $uploader->resize($destination, 800, 600);
+    echo 'File uploaded and resized successfully';
+} else {
+    echo $uploader->getError();
 }
