@@ -1,34 +1,47 @@
 <?php
 
-require_once(__DIR__.'/ImageResizer.php');
-require_once(__DIR__.'/FileValidator.php');
+require_once(__DIR__ . '/ImageResizer.php');
+require_once(__DIR__ . '/FileInformation.php');
+
+
+interface UploaderInterface
+{
+
+    public function getExtension(string $extension): string;
+
+    public function isValid(string $extension): bool;
+}
+
 
 class Uploader
 {
     private $name;
     private $type;
     private $temporaryName;
-    private $directory = '';
-    private $validator;
-    private $resizer;
+    public $directory = '';
     private $error = '';
+    public $validTypes = [];
 
 
-    public function __construct(array $file, FileValidatorInterface $validator, ImageResizerInterface $resizer)
+    public function __construct(array $file)
     {
-        $this->temporaryName = $file['tmp_name'];
-        $this->name = $file['name'];
-        $this->type = $file['type'];
-        $this->validator = $validator;
-        $this->resizer = $resizer;
+        $fileData = $_FILES[$file];
+        $this->temporaryName = $fileData['tmp_name'];
+        $this->name = $fileData['name'];
+        $this->type = $fileData['type'];
     }
 
     public function uploadFile(): bool
     {
-        if ($this->validator->isValid($this->type)) {
+        $extensionDetector = new ExtensionDetector();
+
+        if ($extensionDetector->isValid($this->type)) {
+
             $this->error = 'Le fichier ' . $this->name . ' n\'est pas d\'un type valide';
+
             return false;
         } else {
+
             return true;
         }
     }
@@ -48,32 +61,18 @@ class Uploader
         return $this->name;
     }
 
-    public function getExtension()
+    public function getExtension() {
+
+        $fileInformation = new FileInformation();
+
+        return $fileInformation->getExtension($this->name);
+
+    }
+
+    public function resize($origin, $destination, $width, $maxHeight)
     {
-        return pathinfo($this->name, PATHINFO_EXTENSION);
-    }
-
-    public function resize(string $destination, int $width, int $maxheight): void {
+        $imageResizer = new ImageResizer();
         
-        $this->resizer->ImageResizer($this->temporaryName, $destination, $width, $maxheight);
+        return $imageResizer->resize($this->getExtension(), $origin, $destination, $width, $maxHeight);
     }
-
-    public function getError(): string {
-        return $this->error;
-    }
-}
-
-
-// Utilisation de l'uploader avec des validations et redimensionnements spécifiques
-$file = $_FILES['file'];
-$validator = new FileValidator();
-$resizer = new ImageResizer();
-$uploader = new Uploader($file, $validator, $resizer);
-
-if ($uploader->uploadFile()) {
-    $destination = 'uploads/' . $uploader->getName();
-    $uploader->resize($destination, 800, 600);
-    echo 'File uploaded and resized successfully';
-} else {
-    echo $uploader->getError();
 }

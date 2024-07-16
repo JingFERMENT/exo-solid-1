@@ -1,27 +1,23 @@
 <?php
 
+require_once('ExtensionDetector.php');
+
 // class for image resizer 
 
 interface ImageResizerInterface
 {
 
-    public function ImageResizer(string $origin, string $destination, int $width, int $maxHeight);
+    public function resize(string $extension, string $origin, string $destination, int $width, int $maxHeight);
 }
 
 class ImageResizer implements ImageResizerInterface
 {
-    public function ImageResizer(string $origin, string $destination, int $width, int $maxHeight)
+    public function resize(string $extension, string $origin, string $destination, int $width, int $maxHeight)
     {
-        $type = pathinfo($origin, PATHINFO_EXTENSION);
-        $pngFamily = ['PNG', 'png'];
-        $jpegFamily = ['jpeg', 'jpg', 'JPG'];
-
-        if (in_array($type, $jpegFamily)) {
-            $type = 'jpeg';
-        } elseif (in_array($type, $pngFamily)) {
-            $type = 'png';
-        }
-        $function = 'imagecreatefrom' . $type;
+        
+        $extensionDetector = new ExtensionDetector();
+        $extension = $extensionDetector->getExtension($extension);
+        $function = 'imagecreatefrom' . $extension;
 
         if (!is_callable($function)) {
             return false;
@@ -46,7 +42,7 @@ class ImageResizer implements ImageResizerInterface
             if ($newImage !== false) {
                 \imagecopyresampled($newImage, $image, 0, 0, 0, 0, $width, $height, $imageWidth, $imageHeight);
 
-                $function = 'image' . $type;
+                $function = 'image' . $extension;
 
                 if (!is_callable($function)) {
                     return false;
